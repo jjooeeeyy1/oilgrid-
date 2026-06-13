@@ -159,6 +159,7 @@
     <div class="fld"><label>Stop-out <span class="unit">%</span></label><input id="stopout" type="number" value="50"></div>
     <div class="fld"><label>Cash flow <span class="unit">USD/เดือน</span></label><input id="cashflow" type="number" value="300"></div>
     <div class="fld"><label>Swap/roll <span class="unit">USD/บาเรล/วัน</span></label><input id="drag" type="number" step="0.001" value="0.02"></div>
+    <div class="fld"><label>ราคาวางลอยสุดท้าย <span class="unit">USD (จุดฟันด์)</span></label><input id="floatFloor" type="number" step="0.01" value="0"></div>
   </div>
 
   <!-- ZONES -->
@@ -167,16 +168,16 @@
     <table id="zoneTable">
       <thead><tr>
         <th>โซน</th><th>บน (Top)</th><th>ล่าง (Bottom)</th><th>Lot/ไม้</th>
-        <th>ไม้</th><th>บาเรล/ไม้</th><th>ทุนถึงก้นโซน</th><th></th>
+        <th>ไม้</th><th>บาเรล/ไม้</th><th id="ownHead">ทุนทน→วางลอย</th><th>ทุนถึงก้นโซน</th><th></th>
       </tr></thead>
       <tbody id="zoneBody"></tbody>
       <tfoot><tr>
         <td>รวม</td><td colspan="3"></td>
-        <td id="tRungs">–</td><td id="tBarrels">–</td><td id="tCap">–</td><td></td>
+        <td id="tRungs">–</td><td id="tBarrels">–</td><td id="tOwnCap">–</td><td id="tCap">–</td><td></td>
       </tr></tfoot>
     </table>
     <div class="zfoot"><button class="btn" id="addZone">+ เพิ่มโซน</button>
-      <span class="hint">“ทุนถึงก้นโซน” = floating loss ถ้าราคาไหลลงถึงก้นโซนนั้น (รวมแรงกดจากโซนบนด้วย)</span></div>
+      <span class="hint">“ทุนทน→วางลอย” = ทุนถือ stack ของโซนนั้นยันถูกลากลงถึง “ราคาวางลอยสุดท้าย” ที่ตั้งไว้ด้านบน · “ทุนถึงก้นโซน” = ถือถึงก้นกรอบของตัวเอง (รวมแรงกดโซนบน)</span></div>
   </div>
 
   <!-- MAIN: depth ladder + metrics/curve -->
@@ -269,7 +270,8 @@ function P(){return {
   contract:+$('contract').value||100, spacing:+$('spacing').value||1,
   leverage:+$('leverage').value||200, spread:+$('spread').value||0,
   equity:+$('equity').value||0, stopout:+$('stopout').value||0,
-  cashflow:+$('cashflow').value||0, drag:+$('drag').value||0, cur:+$('curPrice').value||0
+  cashflow:+$('cashflow').value||0, drag:+$('drag').value||0, cur:+$('curPrice').value||0,
+  floatFloor:+$('floatFloor').value||0
 };}
 
 // build all rungs across zones -> {price, lot, barrels, zoneIdx}
@@ -291,6 +293,17 @@ function buildRungs(){
 // floating loss if price falls to L: sum over rungs with entry>=L of (entry-L)*barrels
 function floatingLoss(rungs,L){
   let s=0; for(const r of rungs) if(r.price>=L) s+=(r.price-L)*r.barrels; return s;
+}
+// capital for ONE zone's stack held while dragged down to a given floor price
+// = sum over that zone's rungs with entry>=floor of (entry-floor)*barrels
+function zoneCapToFloat(z,floor){
+  const p=P();
+  const top=Math.max(z.top,z.bottom), bot=Math.min(z.top,z.bottom);
+  if(p.spacing<=0)return 0;
+  const n=Math.floor((top-bot)/p.spacing+1e-9)+1;
+  const bbl=z.lot*p.contract; let s=0;
+  for(let i=0;i<n;i++){const price=bot+i*p.spacing; if(price>=floor) s+=(price-floor)*bbl;}
+  return s;
 }
 // used margin at price L: filled rungs (entry>=L) notional / leverage
 function usedMargin(rungs,L,lev){
@@ -329,6 +342,7 @@ function recompute(){
   });
   $('tRungs').textContent=fmt(totR);
   $('tBarrels').textContent=fmt(totB,2);
+  $('tOwnCap').textContent=usd(floatingLoss(RUNGS,p.floatFloor));
   const fullCap=floatingLoss(RUNGS,0);
   $('tCap').textContent=usd(fullCap);
 
@@ -358,6 +372,7 @@ function recompute(){
 /* ---------- zone editor ---------- */
 function renderZoneRows(){
   const p=P(); const body=$('zoneBody');
+  const oh=$('ownHead'); if(oh)oh.textContent='ทุนทน→วางลอย @ $'+fmt(p.floatFloor,p.floatFloor%1?2:0);
   body.innerHTML=zones.map((z,i)=>{
     const top=Math.max(z.top,z.bottom),bot=Math.min(z.top,z.bottom);
     const n=Math.floor((top-bot)/p.spacing+1e-9)+1;
@@ -370,7 +385,10 @@ function renderZoneRows(){
       <td><input class="zin" data-i="${i}" data-f="top" type="number" value="${z.top}"></td>
       <td><input class="zin" data-i="${i}" data-f="bottom" type="number" value="${z.bottom}"></td>
       <td><input class="zin" data-i="${i}" data-f="lot" type="number" step="0.01" value="${z.lot}"></td>
-      <td>${fmt(n)}</td><td>${fmt(bpr,2)}</td><td class="hl-amber">${usd(cap)}</td>
+      <td class="z-rungs" data-zi="${i}">${fmt(n)}</td>
+      <td class="z-bpr" data-zi="${i}">${fmt(bpr,2)}</td>
+      <td class="z-own hl-cyan" data-zi="${i}">${usd(zoneCapToFloat(z,P().floatFloor))}</td>
+      <td class="z-cap hl-amber" data-zi="${i}">${usd(cap)}</td>
       <td><button class="btn x" data-del="${i}">✕</button></td></tr>`;
   }).join('');
   body.querySelectorAll('.zin').forEach(inp=>{
@@ -385,14 +403,31 @@ function renderZoneRows(){
     zones.splice(+e.target.dataset.del,1); recompute();
   }));
 }
-// recompute everything EXCEPT zone rows (keeps input focus while typing)
+// update per-zone derived cells in place (no input re-render -> keeps focus)
+function updateZoneCells(){
+  const p=P();
+  const oh=$('ownHead'); if(oh)oh.textContent='ทุนทน→วางลอย @ $'+fmt(p.floatFloor,p.floatFloor%1?2:0);
+  zones.forEach((z,i)=>{
+    const top=Math.max(z.top,z.bottom),bot=Math.min(z.top,z.bottom);
+    const n=Math.floor((top-bot)/p.spacing+1e-9)+1;
+    const bpr=z.lot*p.contract;
+    const cap=floatingLoss(RUNGS,bot);
+    const rc=document.querySelector('.z-rungs[data-zi="'+i+'"]'); if(rc)rc.textContent=fmt(n);
+    const bc=document.querySelector('.z-bpr[data-zi="'+i+'"]'); if(bc)bc.textContent=fmt(bpr,2);
+    const oc=document.querySelector('.z-own[data-zi="'+i+'"]'); if(oc)oc.textContent=usd(zoneCapToFloat(z,p.floatFloor));
+    const cc=document.querySelector('.z-cap[data-zi="'+i+'"]'); if(cc)cc.textContent=usd(cap);
+  });
+}
+// recompute everything EXCEPT zone-row inputs (keeps input focus while typing)
 function refreshDerived(){
   const p=P();
   let totR=0,totB=0;
   zones.forEach((z)=>{const top=Math.max(z.top,z.bottom),bot=Math.min(z.top,z.bottom);
     const n=Math.floor((top-bot)/p.spacing+1e-9)+1; totR+=n; totB+=n*z.lot*p.contract;});
   $('tRungs').textContent=fmt(totR); $('tBarrels').textContent=fmt(totB,2);
+  $('tOwnCap').textContent=usd(floatingLoss(RUNGS,p.floatFloor));
   $('tCap').textContent=usd(floatingLoss(RUNGS,0));
+  updateZoneCells();
   const so=stopOutPrice(RUNGS,p);
   const top=RUNGS.length?RUNGS[0].price:p.cur; $('probe').max=top;
   $('cards').children[0].querySelector('.v').textContent=usd(floatingLoss(RUNGS,0));
@@ -530,7 +565,7 @@ function computeSwap(){
   const net=p.cashflow-monthly;
   const fl=floatingLoss(RUNGS,L);
   $('swapResult').innerHTML=`
-    <div class="line"><span>บาเรลที่จมน้ำ @ $${L}</span><b>${fmt(uw,2)}</b></div>
+    <div class="line"><span>บาเรลที่ถือเปิด @ $${L}</span><b>${fmt(uw,2)}</b></div>
     <div class="line"><span>floating loss ที่จุดนี้</span><b class="hl-amber">${usd(fl)}</b></div>
     <div class="line"><span>swap drag / วัน</span><b>${usd(daily,2)}</b></div>
     <div class="line"><span>swap drag / เดือน</span><b class="hl-red">${usd(monthly)}</b></div>
@@ -575,7 +610,7 @@ $('dlBtn').addEventListener('click',()=>{
 });
 
 /* ---------- wiring ---------- */
-['contract','spacing','leverage','spread','equity','stopout','cashflow','drag','curPrice']
+['contract','spacing','leverage','spread','equity','stopout','cashflow','drag','curPrice','floatFloor']
   .forEach(id=>$(id).addEventListener('input',recompute));
 ['rFrom','rTo','rAt','rLot'].forEach(id=>$(id).addEventListener('input',computeRubob));
 $('parkPrice').addEventListener('input',computeSwap);
