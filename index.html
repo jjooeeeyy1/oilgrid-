@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CRUDE GRID — Tactical Cost Terminal</title>
+<style>
+  :root{
+    --bg:#070b0c; --panel:#0e1517; --panel2:#121d1f; --line:#1d2c2f;
+    --txt:#dce6e4; --muted:#6f847e; --amber:#f0a93b; --green:#43c08a;
+    --red:#e8584b; --cyan:#46c9d6; --deep:#0c3338;
+    --mono:ui-monospace,SFMono-Regular,Menlo,"DejaVu Sans Mono",monospace;
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--txt);font-family:var(--sans);
+    -webkit-font-smoothing:antialiased}
+  body{padding:0 0 60px}
+  .wrap{max-width:1240px;margin:0 auto;padding:0 18px}
+
+  /* header */
+  header{border-bottom:1px solid var(--line);background:
+    linear-gradient(180deg,#0c1416 0%,#070b0c 100%);position:sticky;top:0;z-index:20}
+  .hbar{display:flex;align-items:center;gap:18px;padding:14px 18px;max-width:1240px;margin:0 auto;flex-wrap:wrap}
+  .brand{font-family:var(--mono);font-weight:700;letter-spacing:.22em;font-size:14px;
+    text-transform:uppercase;color:var(--txt)}
+  .brand b{color:var(--amber)}
+  .brand .sub{display:block;letter-spacing:.18em;font-size:9px;color:var(--muted);margin-top:3px;font-weight:500}
+  .live{margin-left:auto;display:flex;align-items:center;gap:10px;font-family:var(--mono)}
+  .live label{font-size:10px;letter-spacing:.14em;color:var(--muted);text-transform:uppercase}
+  .live .px{font-size:26px;font-weight:700;color:var(--cyan);font-family:var(--mono);
+    background:none;border:none;width:120px;text-align:right;outline:none;border-bottom:1px solid var(--line)}
+  .live .px:focus{border-color:var(--cyan)}
+  .dot{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 8px var(--green);animation:pulse 2s infinite}
+  @keyframes pulse{50%{opacity:.35}}
+
+  h2{font-family:var(--mono);font-size:11px;letter-spacing:.2em;text-transform:uppercase;
+    color:var(--muted);font-weight:600;margin:0 0 12px;display:flex;align-items:center;gap:8px}
+  h2::before{content:"";width:14px;height:1px;background:var(--amber)}
+
+  /* params */
+  .params{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin:22px 0}
+  .fld{background:var(--panel);border:1px solid var(--line);border-radius:7px;padding:9px 11px}
+  .fld label{display:block;font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:5px}
+  .fld input{width:100%;background:none;border:none;color:var(--txt);font-family:var(--mono);
+    font-size:16px;font-weight:600;outline:none}
+  .fld input:focus{color:var(--amber)}
+  .fld .unit{font-size:10px;color:var(--muted);font-weight:400;margin-left:3px}
+
+  /* zones */
+  .zwrap{background:var(--panel);border:1px solid var(--line);border-radius:9px;overflow:hidden;margin-bottom:22px}
+  table{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:13px}
+  thead th{font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);
+    font-weight:600;text-align:right;padding:10px 12px;border-bottom:1px solid var(--line);font-family:var(--sans)}
+  thead th:first-child,tbody td:first-child{text-align:left}
+  tbody td{padding:8px 12px;text-align:right;border-bottom:1px solid #16201f}
+  tbody tr:last-child td{border-bottom:none}
+  .zin{width:62px;background:#0a1112;border:1px solid var(--line);border-radius:4px;color:var(--txt);
+    font-family:var(--mono);font-size:13px;padding:4px 6px;text-align:right;outline:none}
+  .zin:focus{border-color:var(--amber);color:var(--amber)}
+  .zname{width:96px;text-align:left}
+  .zchip{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:7px;vertical-align:middle}
+  .btn{background:#15211f;border:1px solid var(--line);color:var(--muted);font-family:var(--mono);
+    font-size:11px;border-radius:5px;padding:5px 9px;cursor:pointer;transition:.15s}
+  .btn:hover{border-color:var(--amber);color:var(--amber)}
+  .btn.x{padding:4px 8px;color:var(--red)}
+  .btn.x:hover{border-color:var(--red);background:#1f1414}
+  .zfoot{padding:11px 12px;display:flex;gap:10px;align-items:center;background:#0b1314}
+  tfoot td{padding:9px 12px;text-align:right;font-family:var(--mono);font-weight:700;color:var(--amber);
+    border-top:1px solid var(--line)}
+  tfoot td:first-child{text-align:left;color:var(--muted);font-weight:600}
+
+  /* main grid */
+  .main{display:grid;grid-template-columns:300px 1fr;gap:18px;margin-bottom:22px}
+  @media(max-width:880px){.main{grid-template-columns:1fr}}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:16px}
+  canvas{display:block;width:100%}
+
+  /* metrics */
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:11px;margin-bottom:16px}
+  .card{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:13px 14px;position:relative;overflow:hidden}
+  .card .k{font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:7px}
+  .card .v{font-family:var(--mono);font-size:23px;font-weight:700;line-height:1}
+  .card .v small{font-size:12px;color:var(--muted);font-weight:500}
+  .card .note{font-size:10px;color:var(--muted);margin-top:6px;font-family:var(--mono)}
+  .card.danger .v{color:var(--red)} .card.warn .v{color:var(--amber)}
+  .card.good .v{color:var(--green)} .card.info .v{color:var(--cyan)}
+  .card::after{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--line)}
+  .card.danger::after{background:var(--red)} .card.warn::after{background:var(--amber)}
+  .card.good::after{background:var(--green)} .card.info::after{background:var(--cyan)}
+
+  /* probe */
+  .probe{margin-top:6px}
+  .probe .row{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+  .probe .pval{font-family:var(--mono);font-size:20px;font-weight:700;color:var(--amber)}
+  input[type=range]{width:100%;-webkit-appearance:none;height:5px;border-radius:3px;
+    background:linear-gradient(90deg,var(--red),var(--amber),var(--green));outline:none;margin:8px 0 4px}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;border-radius:50%;
+    background:var(--cyan);border:2px solid #04181a;cursor:pointer;box-shadow:0 0 10px rgba(70,201,214,.6)}
+  input[type=range]::-moz-range-thumb{width:18px;height:18px;border-radius:50%;background:var(--cyan);
+    border:2px solid #04181a;cursor:pointer}
+  .pstat{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:14px;font-family:var(--mono)}
+  .pstat div{background:#0a1213;border:1px solid var(--line);border-radius:6px;padding:9px 11px}
+  .pstat .lab{font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-family:var(--sans)}
+  .pstat .num{font-size:16px;font-weight:700;margin-top:4px}
+
+  /* รวบ + swap split */
+  .split{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:22px}
+  @media(max-width:880px){.split{grid-template-columns:1fr}}
+  .minirow{display:flex;gap:9px;flex-wrap:wrap;margin-bottom:14px}
+  .minirow .fld{flex:1;min-width:78px;padding:7px 9px}
+  .minirow .fld input{font-size:14px}
+  .result{font-family:var(--mono)}
+  .result .line{display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid #16201f;font-size:13px}
+  .result .line:last-child{border-bottom:none}
+  .result .line span:first-child{color:var(--muted)}
+  .result .big{font-size:18px;font-weight:700}
+  .hl-green{color:var(--green)} .hl-amber{color:var(--amber)} .hl-red{color:var(--red)} .hl-cyan{color:var(--cyan)}
+
+  /* order book */
+  .obwrap{background:var(--panel);border:1px solid var(--line);border-radius:9px;overflow:hidden}
+  .obscroll{max-height:340px;overflow-y:auto}
+  .obscroll table tbody td{font-size:12px;padding:6px 12px}
+  .side{color:var(--green);font-weight:600}
+  .mt5{margin-top:18px}
+  textarea{width:100%;height:130px;background:#070d0e;border:1px solid var(--line);border-radius:8px;
+    color:var(--green);font-family:var(--mono);font-size:11px;padding:12px;resize:vertical;outline:none;line-height:1.6}
+  textarea:focus{border-color:var(--green)}
+  .bar{display:flex;gap:10px;align-items:center;margin-top:10px;flex-wrap:wrap}
+  .hint{font-size:11px;color:var(--muted);line-height:1.6}
+  .warnbox{background:#1a1110;border:1px solid #3a201d;border-radius:8px;padding:12px 14px;font-size:12px;
+    color:#e9a59c;line-height:1.65;margin-top:14px}
+  .warnbox b{color:var(--red)}
+  footer{text-align:center;color:var(--muted);font-size:11px;margin-top:40px;line-height:1.8;font-family:var(--mono)}
+</style>
+</head>
+<body>
+<header>
+  <div class="hbar">
+    <div class="brand">CRUDE <b>GRID</b><span class="sub">Tactical Cost Terminal · WTI Cash</span></div>
+    <div class="live">
+      <span class="dot"></span>
+      <label>ราคาปัจจุบัน</label>
+      <input class="px" id="curPrice" type="number" step="0.01" value="85">
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <!-- GLOBAL PARAMS -->
+  <h2>พารามิเตอร์โบรก / กริด</h2>
+  <div class="params">
+    <div class="fld"><label>Contract size <span class="unit">บาเรล/lot</span></label><input id="contract" type="number" value="100"></div>
+    <div class="fld"><label>ระยะกริด <span class="unit">USD</span></label><input id="spacing" type="number" step="0.01" value="1"></div>
+    <div class="fld"><label>Leverage <span class="unit">x:1</span></label><input id="leverage" type="number" value="200"></div>
+    <div class="fld"><label>Spread <span class="unit">USD</span></label><input id="spread" type="number" step="0.01" value="0.05"></div>
+    <div class="fld"><label>ทุน (Equity) <span class="unit">USD</span></label><input id="equity" type="number" value="1500"></div>
+    <div class="fld"><label>Stop-out <span class="unit">%</span></label><input id="stopout" type="number" value="50"></div>
+    <div class="fld"><label>Cash flow <span class="unit">USD/เดือน</span></label><input id="cashflow" type="number" value="300"></div>
+    <div class="fld"><label>Swap/roll <span class="unit">USD/บาเรล/วัน</span></label><input id="drag" type="number" step="0.001" value="0.02"></div>
+  </div>
+
+  <!-- ZONES -->
+  <h2>โซนกริด — เพิ่มได้ / ปรับ lot ไล่ขั้นได้</h2>
+  <div class="zwrap">
+    <table id="zoneTable">
+      <thead><tr>
+        <th>โซน</th><th>บน (Top)</th><th>ล่าง (Bottom)</th><th>Lot/ไม้</th>
+        <th>ไม้</th><th>บาเรล/ไม้</th><th>ทุนถึงก้นโซน</th><th></th>
+      </tr></thead>
+      <tbody id="zoneBody"></tbody>
+      <tfoot><tr>
+        <td>รวม</td><td colspan="3"></td>
+        <td id="tRungs">–</td><td id="tBarrels">–</td><td id="tCap">–</td><td></td>
+      </tr></tfoot>
+    </table>
+    <div class="zfoot"><button class="btn" id="addZone">+ เพิ่มโซน</button>
+      <span class="hint">“ทุนถึงก้นโซน” = floating loss ถ้าราคาไหลลงถึงก้นโซนนั้น (รวมแรงกดจากโซนบนด้วย)</span></div>
+  </div>
+
+  <!-- MAIN: depth ladder + metrics/curve -->
+  <div class="main">
+    <div class="panel">
+      <h2>Depth Gauge</h2>
+      <canvas id="ladder" height="560"></canvas>
+    </div>
+    <div>
+      <div class="cards" id="cards"></div>
+      <div class="panel">
+        <h2>เส้นโค้งทุน / จุดแตกจริง</h2>
+        <canvas id="curve" height="220"></canvas>
+        <div class="probe">
+          <div class="row"><span class="hint">ลากเพื่อจำลอง “ถ้าราคาไหลถึง…”</span>
+            <span class="pval" id="probeVal">$85.00</span></div>
+          <input type="range" id="probe" min="0" max="85" step="0.5" value="85">
+          <div class="pstat">
+            <div><div class="lab">ไม้ที่ติด</div><div class="num hl-cyan" id="pFilled">0</div></div>
+            <div><div class="lab">Floating loss</div><div class="num hl-amber" id="pLoss">$0</div></div>
+            <div><div class="lab">Equity คงเหลือ</div><div class="num" id="pEq">$0</div></div>
+            <div><div class="lab">Margin level</div><div class="num" id="pML">–</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- รวบ + swap -->
+  <div class="split">
+    <div class="panel">
+      <h2>เครื่องคิดเลข “รวบไม้” (one-time)</h2>
+      <div class="minirow">
+        <div class="fld"><label>จากราคา</label><input id="rFrom" type="number" step="0.01" value="85"></div>
+        <div class="fld"><label>ถึงราคา</label><input id="rTo" type="number" step="0.01" value="65"></div>
+        <div class="fld"><label>เปิดที่</label><input id="rAt" type="number" step="0.01" value="65"></div>
+        <div class="fld"><label>Lot/ไม้</label><input id="rLot" type="number" step="0.01" value="0.01"></div>
+      </div>
+      <div class="result" id="rResult"></div>
+      <p class="hint" style="margin-top:12px">ส่วนลดตอนรวบ = กำไรส่วนเกินตอน TP ไล่ขั้น (1,2,3…n) เงินก้อนเดียวกัน มองคนละหัว · เป็นของนัดแรกครั้งเดียว รอบรีไซเคิลถัดไปกลับเป็นกริดธรรมดา</p>
+    </div>
+    <div class="panel">
+      <h2>Swap drag เทียบ Cash flow</h2>
+      <div class="minirow">
+        <div class="fld"><label>ราคาจอดที่</label><input id="parkPrice" type="number" step="0.01" value="55"></div>
+      </div>
+      <div class="result" id="swapResult"></div>
+      <div class="warnbox" id="swapWarn"></div>
+    </div>
+  </div>
+
+  <!-- ORDER BOOK -->
+  <h2>รายการไม้ (Buy Limit Ladder) + Export MT5</h2>
+  <div class="obwrap">
+    <div class="obscroll">
+      <table><thead><tr>
+        <th>โซน</th><th>คำสั่ง</th><th>Lot</th><th>Entry</th><th>TP</th><th>บาเรล</th><th>กำไรสุทธิ/รอบ</th>
+      </tr></thead><tbody id="obBody"></tbody></table>
+    </div>
+  </div>
+  <div class="mt5">
+    <textarea id="mt5out" readonly></textarea>
+    <div class="bar">
+      <button class="btn" id="copyBtn">คัดลอกคำสั่ง MT5</button>
+      <button class="btn" id="dlBtn">ดาวน์โหลด .csv</button>
+      <span class="hint" id="obCount"></span>
+    </div>
+  </div>
+
+  <footer>
+    CRUDE GRID — เครื่องมือคำนวณ ไม่ใช่คำแนะนำการลงทุน · ตัวเลขขึ้นกับสเปกโบรกจริงและ roll/contango ที่อาจไม่โชว์เป็น swap<br>
+    ตรวจ negative-balance protection กับโบรกก่อนวางใจคำว่า “closed system”
+  </footer>
+</div>
+
+<script>
+"use strict";
+const $=id=>document.getElementById(id);
+const fmt=(n,d=0)=>n.toLocaleString('en-US',{minimumFractionDigits:d,maximumFractionDigits:d});
+const usd=(n,d=0)=>'$'+fmt(n,d);
+
+const ZONE_COLORS=['#43c08a','#f0a93b','#e8584b','#46c9d6','#a98bff','#ff8fb0'];
+let zones=[
+  {name:'Zone 1',top:85,bottom:65,lot:0.01},
+  {name:'Zone 2',top:64,bottom:40,lot:0.02},
+  {name:'Zone 3',top:39,bottom:0, lot:0.04},
+];
+
+function P(){return {
+  contract:+$('contract').value||100, spacing:+$('spacing').value||1,
+  leverage:+$('leverage').value||200, spread:+$('spread').value||0,
+  equity:+$('equity').value||0, stopout:+$('stopout').value||0,
+  cashflow:+$('cashflow').value||0, drag:+$('drag').value||0, cur:+$('curPrice').value||0
+};}
+
+// build all rungs across zones -> {price, lot, barrels, zoneIdx}
+function buildRungs(){
+  const p=P(); const rungs=[];
+  zones.forEach((z,zi)=>{
+    const top=Math.max(z.top,z.bottom), bot=Math.min(z.top,z.bottom);
+    if(p.spacing<=0)return;
+    const n=Math.floor((top-bot)/p.spacing+1e-9)+1;
+    for(let i=0;i<n;i++){
+      const price=+(bot+i*p.spacing).toFixed(2);
+      rungs.push({price,lot:z.lot,barrels:z.lot*p.contract,zoneIdx:zi});
+    }
+  });
+  rungs.sort((a,b)=>b.price-a.price);
+  return rungs;
+}
+
+// floating loss if price falls to L: sum over rungs with entry>=L of (entry-L)*barrels
+function floatingLoss(rungs,L){
+  let s=0; for(const r of rungs) if(r.price>=L) s+=(r.price-L)*r.barrels; return s;
+}
+// used margin at price L: filled rungs (entry>=L) notional / leverage
+function usedMargin(rungs,L,lev){
+  let s=0; for(const r of rungs) if(r.price>=L) s+=r.price*r.barrels; return s/lev;
+}
+function filledCount(rungs,L){let c=0;for(const r of rungs)if(r.price>=L)c++;return c;}
+function underwaterBarrels(rungs,L){let b=0;for(const r of rungs)if(r.price>=L)b+=r.barrels;return b;}
+
+function marginLevel(rungs,L,p){
+  const eq=p.equity-floatingLoss(rungs,L);
+  const um=usedMargin(rungs,L,p.leverage);
+  if(um<=0)return Infinity;
+  return eq/um*100;
+}
+// scan for stop-out price (highest L where ML<=stopout, scanning downward)
+function stopOutPrice(rungs,p){
+  if(!rungs.length)return null;
+  const top=rungs[0].price;
+  for(let L=top;L>=0;L-=0.1){
+    if(marginLevel(rungs,L,p)<=p.stopout) return +L.toFixed(2);
+  }
+  return null; // survives to 0
+}
+
+let RUNGS=[];
+function recompute(){
+  const p=P();
+  RUNGS=buildRungs();
+
+  // zone table footer + per-zone capital-to-bottom
+  renderZoneRows();
+  let totR=0,totB=0;
+  zones.forEach((z)=>{
+    const top=Math.max(z.top,z.bottom),bot=Math.min(z.top,z.bottom);
+    const n=Math.floor((top-bot)/p.spacing+1e-9)+1; totR+=n; totB+=n*z.lot*p.contract;
+  });
+  $('tRungs').textContent=fmt(totR);
+  $('tBarrels').textContent=fmt(totB,2);
+  const fullCap=floatingLoss(RUNGS,0);
+  $('tCap').textContent=usd(fullCap);
+
+  // probe range
+  const top=RUNGS.length?RUNGS[0].price:p.cur;
+  const probe=$('probe'); probe.max=top; if(+probe.value>top)probe.value=top;
+
+  // stop-out
+  const so=stopOutPrice(RUNGS,p);
+
+  // cards
+  const cards=[
+    {k:'ทุนเต็มถึง $0',v:usd(fullCap),cls:'warn',note:'closed system worst case'},
+    {k:'จุด stop-out จริง',v: so===null?'รอด→ $0':('$'+fmt(so,2)),cls:so===null?'good':'danger',
+      note: so===null?'equity ทนถึงพื้น':'ที่ equity '+usd(p.equity)},
+    {k:'มาร์จิ้นที่ใช้ (เต็ม)',v:usd(usedMargin(RUNGS,0,p.leverage),2),cls:'info',note:'lev '+p.leverage+':1 — จิ๊บจ๊อย'},
+    {k:'Spread haircut',v:fmt(p.spacing>0?p.spread/p.spacing*100:0,1)+'%',cls:'warn',note:'ของกำไรต่อรอบ'},
+  ];
+  $('cards').innerHTML=cards.map(c=>`<div class="card ${c.cls}"><div class="k">${c.k}</div>
+    <div class="v">${c.v}</div><div class="note">${c.note}</div></div>`).join('');
+
+  drawLadder(so); drawCurve(so);
+  updateProbe();
+  computeRubob(); computeSwap(); renderOrderBook();
+}
+
+/* ---------- zone editor ---------- */
+function renderZoneRows(){
+  const p=P(); const body=$('zoneBody');
+  body.innerHTML=zones.map((z,i)=>{
+    const top=Math.max(z.top,z.bottom),bot=Math.min(z.top,z.bottom);
+    const n=Math.floor((top-bot)/p.spacing+1e-9)+1;
+    const bpr=z.lot*p.contract;
+    // capital to this zone's bottom (incl. pressure from zones above)
+    const cap=floatingLoss(RUNGS.length?RUNGS:buildRungs(),bot);
+    const col=ZONE_COLORS[i%ZONE_COLORS.length];
+    return `<tr>
+      <td><span class="zchip" style="background:${col}"></span><input class="zin zname" data-i="${i}" data-f="name" value="${z.name}"></td>
+      <td><input class="zin" data-i="${i}" data-f="top" type="number" value="${z.top}"></td>
+      <td><input class="zin" data-i="${i}" data-f="bottom" type="number" value="${z.bottom}"></td>
+      <td><input class="zin" data-i="${i}" data-f="lot" type="number" step="0.01" value="${z.lot}"></td>
+      <td>${fmt(n)}</td><td>${fmt(bpr,2)}</td><td class="hl-amber">${usd(cap)}</td>
+      <td><button class="btn x" data-del="${i}">✕</button></td></tr>`;
+  }).join('');
+  body.querySelectorAll('.zin').forEach(inp=>{
+    inp.addEventListener('input',e=>{
+      const i=+e.target.dataset.i,f=e.target.dataset.f;
+      zones[i][f]= f==='name'?e.target.value:(+e.target.value);
+      // light recompute without re-rendering rows (avoid losing focus)
+      RUNGS=buildRungs(); refreshDerived();
+    });
+  });
+  body.querySelectorAll('[data-del]').forEach(b=>b.addEventListener('click',e=>{
+    zones.splice(+e.target.dataset.del,1); recompute();
+  }));
+}
+// recompute everything EXCEPT zone rows (keeps input focus while typing)
+function refreshDerived(){
+  const p=P();
+  let totR=0,totB=0;
+  zones.forEach((z)=>{const top=Math.max(z.top,z.bottom),bot=Math.min(z.top,z.bottom);
+    const n=Math.floor((top-bot)/p.spacing+1e-9)+1; totR+=n; totB+=n*z.lot*p.contract;});
+  $('tRungs').textContent=fmt(totR); $('tBarrels').textContent=fmt(totB,2);
+  $('tCap').textContent=usd(floatingLoss(RUNGS,0));
+  const so=stopOutPrice(RUNGS,p);
+  const top=RUNGS.length?RUNGS[0].price:p.cur; $('probe').max=top;
+  $('cards').children[0].querySelector('.v').textContent=usd(floatingLoss(RUNGS,0));
+  const c2=$('cards').children[1]; c2.className='card '+(so===null?'good':'danger');
+  c2.querySelector('.v').textContent= so===null?'รอด→ $0':('$'+fmt(so,2));
+  c2.querySelector('.note').textContent= so===null?'equity ทนถึงพื้น':'ที่ equity '+usd(p.equity);
+  $('cards').children[2].querySelector('.v').textContent=usd(usedMargin(RUNGS,0,p.leverage),2);
+  $('cards').children[3].querySelector('.v').textContent=fmt(p.spacing>0?p.spread/p.spacing*100:0,1)+'%';
+  drawLadder(so); drawCurve(so); updateProbe(); computeRubob(); computeSwap(); renderOrderBook();
+}
+
+/* ---------- depth ladder ---------- */
+function drawLadder(so){
+  const cv=$('ladder'),ctx=cv.getContext('2d');
+  const W=cv.clientWidth||280, H=cv.height; cv.width=W*devicePixelRatio; cv.height=H*devicePixelRatio;
+  cv.style.height=H+'px'; ctx.scale(devicePixelRatio,devicePixelRatio);
+  ctx.clearRect(0,0,W,H);
+  const p=P();
+  const top=RUNGS.length?Math.max(RUNGS[0].price,p.cur):p.cur;
+  const bot=0, padT=14,padB=20, plotH=H-padT-padB, axisX=40;
+  const y=price=> padT + (top-price)/(top-bot||1)*plotH;
+
+  // zone bands
+  zones.forEach((z,i)=>{
+    const zt=Math.max(z.top,z.bottom),zb=Math.min(z.top,z.bottom);
+    const col=ZONE_COLORS[i%ZONE_COLORS.length];
+    ctx.fillStyle=col+'1f';
+    ctx.fillRect(axisX,y(zt),W-axisX,y(zb)-y(zt));
+    ctx.fillStyle=col; ctx.font='600 9px ui-monospace,monospace';
+    ctx.fillText(z.name.toUpperCase(),axisX+6,y(zt)+12);
+  });
+  // axis ticks
+  ctx.strokeStyle='#1d2c2f'; ctx.fillStyle='#6f847e'; ctx.font='10px ui-monospace,monospace';
+  const stepT=Math.ceil((top/8)/5)*5||5;
+  for(let pr=0;pr<=top;pr+=stepT){
+    ctx.beginPath();ctx.moveTo(axisX,y(pr));ctx.lineTo(W,y(pr));ctx.globalAlpha=.25;ctx.stroke();ctx.globalAlpha=1;
+    ctx.fillText(pr,4,y(pr)+3);
+  }
+  // current price
+  const yc=y(p.cur);
+  ctx.strokeStyle='#46c9d6';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(axisX,yc);ctx.lineTo(W,yc);ctx.stroke();
+  ctx.fillStyle='#46c9d6';ctx.font='700 11px ui-monospace,monospace';
+  ctx.fillText('● '+p.cur.toFixed(2),axisX+6,yc-5);
+  // stop-out rupture line
+  if(so!==null){
+    const ys=y(so);
+    ctx.save();ctx.strokeStyle='#e8584b';ctx.lineWidth=2;ctx.setLineDash([6,4]);ctx.shadowColor='#e8584b';ctx.shadowBlur=8;
+    ctx.beginPath();ctx.moveTo(axisX,ys);ctx.lineTo(W,ys);ctx.stroke();ctx.restore();
+    ctx.fillStyle='#e8584b';ctx.font='700 10px ui-monospace,monospace';
+    ctx.fillText('⚠ STOP-OUT '+so.toFixed(2),axisX+6,ys+13);
+  }
+  ctx.lineWidth=1;
+}
+
+/* ---------- loss/equity curve ---------- */
+function drawCurve(so){
+  const cv=$('curve'),ctx=cv.getContext('2d');
+  const W=cv.clientWidth||600,H=cv.height; cv.width=W*devicePixelRatio;cv.height=H*devicePixelRatio;
+  cv.style.height=H+'px';ctx.scale(devicePixelRatio,devicePixelRatio);ctx.clearRect(0,0,W,H);
+  const p=P(); const top=RUNGS.length?RUNGS[0].price:p.cur; if(top<=0)return;
+  const padL=46,padR=12,padT=12,padB=22,pw=W-padL-padR,ph=H-padT-padB;
+  // sample
+  const N=120,pts=[];let maxV=p.equity;
+  for(let i=0;i<=N;i++){const L=top*(1-i/N);const fl=floatingLoss(RUNGS,L);pts.push({L,fl,eq:p.equity-fl});maxV=Math.max(maxV,fl);}
+  const x=L=>padL+(top-L)/top*pw;
+  const yv=v=>padT+(1-v/(maxV||1))*ph;
+  // grid
+  ctx.strokeStyle='#1d2c2f';ctx.fillStyle='#6f847e';ctx.font='9px ui-monospace,monospace';
+  for(let i=0;i<=4;i++){const v=maxV*i/4;const yy=yv(v);ctx.globalAlpha=.3;
+    ctx.beginPath();ctx.moveTo(padL,yy);ctx.lineTo(W-padR,yy);ctx.stroke();ctx.globalAlpha=1;
+    ctx.fillText('$'+fmt(v),4,yy+3);}
+  // x labels
+  [top,top*0.66,top*0.33,0].forEach(L=>ctx.fillText(L.toFixed(0),x(L)-6,H-7));
+  // stop-out shade
+  if(so!==null){ctx.fillStyle='#e8584b14';ctx.fillRect(x(so),padT,W-padR-x(so),ph);}
+  // floating loss
+  ctx.strokeStyle='#f0a93b';ctx.lineWidth=2;ctx.beginPath();
+  pts.forEach((pt,i)=>{const xx=x(pt.L),yy=yv(pt.fl);i?ctx.lineTo(xx,yy):ctx.moveTo(xx,yy);});ctx.stroke();
+  // equity
+  ctx.strokeStyle='#46c9d6';ctx.setLineDash([4,3]);ctx.beginPath();
+  pts.forEach((pt,i)=>{const xx=x(pt.L),yy=yv(Math.max(pt.eq,0));i?ctx.lineTo(xx,yy):ctx.moveTo(xx,yy);});ctx.stroke();ctx.setLineDash([]);
+  // legend
+  ctx.font='700 10px ui-monospace,monospace';
+  ctx.fillStyle='#f0a93b';ctx.fillText('— Floating loss',padL+4,padT+10);
+  ctx.fillStyle='#46c9d6';ctx.fillText('-- Equity',padL+120,padT+10);
+  ctx.lineWidth=1;
+}
+
+/* ---------- probe ---------- */
+function updateProbe(){
+  const p=P(),L=+$('probe').value;
+  $('probeVal').textContent='$'+L.toFixed(2);
+  const fl=floatingLoss(RUNGS,L),eq=p.equity-fl,ml=marginLevel(RUNGS,L,p);
+  $('pFilled').textContent=fmt(filledCount(RUNGS,L));
+  $('pLoss').textContent=usd(fl);
+  $('pEq').textContent=usd(eq);
+  $('pEq').className='num '+(eq<=0?'hl-red':'');
+  const mlEl=$('pML');
+  if(ml===Infinity){mlEl.textContent='∞';mlEl.className='num hl-green';}
+  else{mlEl.textContent=fmt(ml)+'%';mlEl.className='num '+(ml<=p.stopout?'hl-red':ml<p.stopout*2?'hl-amber':'hl-green');}
+  drawLadderMarker(L);
+}
+function drawLadderMarker(L){ drawLadder(stopOutPrice(RUNGS,P())); 
+  const cv=$('ladder'),ctx=cv.getContext('2d');const p=P();
+  const W=cv.clientWidth||280,H=cv.height/devicePixelRatio;const top=RUNGS.length?Math.max(RUNGS[0].price,p.cur):p.cur;
+  const padT=14,padB=20,plotH=H-padT-padB,axisX=40;const yy=padT+(top-L)/(top||1)*plotH;
+  ctx.fillStyle='#f0a93b';ctx.beginPath();ctx.moveTo(axisX-4,yy);ctx.lineTo(axisX-12,yy-5);ctx.lineTo(axisX-12,yy+5);ctx.fill();
+}
+
+/* ---------- รวบ calculator ---------- */
+function computeRubob(){
+  const p=P();
+  const from=+$('rFrom').value,to=+$('rTo').value,at=+$('rAt').value,lot=+$('rLot').value;
+  const hi=Math.max(from,to),lo=Math.min(from,to);
+  const n=Math.floor((hi-lo)/p.spacing+1e-9)+1;
+  const barrels=lot*p.contract;
+  let ladderSum=0;for(let i=0;i<n;i++)ladderSum+=(lo+i*p.spacing);
+  const ladderCost=ladderSum*barrels;
+  const bulkCost=n*at*barrels;
+  const discount=ladderCost-bulkCost;
+  // realized profit ladder if bulk-opened at "at" and TP each at its natural rung +spacing... 
+  // profit when each rung sold at (entry+spacing path) ≈ triangular relative to open price
+  $('rResult').innerHTML=`
+    <div class="line"><span>จำนวนไม้</span><b>${fmt(n)} ไม้ · ${fmt(barrels,2)} บาเรล/ไม้</b></div>
+    <div class="line"><span>ต้นทุนแบบไล่ขั้น (ไม่รวบ)</span><b>${usd(ladderCost)}</b></div>
+    <div class="line"><span>ต้นทุนแบบรวบ @ $${at}</span><b>${usd(bulkCost)}</b></div>
+    <div class="line"><span>ส่วนลด one-time</span><b class="big ${discount>=0?'hl-green':'hl-red'}">${usd(discount)}</b></div>`;
+}
+
+/* ---------- swap drag ---------- */
+function computeSwap(){
+  const p=P(); const L=+$('parkPrice').value;
+  const uw=underwaterBarrels(RUNGS,L);
+  const daily=uw*p.drag, monthly=daily*30;
+  const net=p.cashflow-monthly;
+  const fl=floatingLoss(RUNGS,L);
+  $('swapResult').innerHTML=`
+    <div class="line"><span>บาเรลที่จมน้ำ @ $${L}</span><b>${fmt(uw,2)}</b></div>
+    <div class="line"><span>floating loss ที่จุดนี้</span><b class="hl-amber">${usd(fl)}</b></div>
+    <div class="line"><span>swap drag / วัน</span><b>${usd(daily,2)}</b></div>
+    <div class="line"><span>swap drag / เดือน</span><b class="hl-red">${usd(monthly)}</b></div>
+    <div class="line"><span>cash flow / เดือน</span><b class="hl-cyan">${usd(p.cashflow)}</b></div>
+    <div class="line"><span>สุทธิ / เดือน</span><b class="big ${net>=0?'hl-green':'hl-red'}">${net>=0?'+':''}${usd(net)}</b></div>`;
+  const w=$('swapWarn');
+  if(net>=0){w.innerHTML=`cash flow <b style="color:#43c08a">เอาอยู่</b> — เติมเร็วกว่า swap กัด ที่ราคา $${L} ระบบยืนได้ แต่ระวังถ้าราคาลงลึกกว่านี้ บาเรลจมเพิ่ม drag จะโตขึ้น`;}
+  else{w.innerHTML=`<b>เลือดไหล ${usd(-net)}/เดือน</b> — ที่ราคา $${L} swap กัดเกิน cash flow ถ้าน้ำมันจอดระดับนี้นาน ๆ (2015-16, 2020 เคยอยู่เป็นปี) ระบบ “ไม่แตกแต่ตายช้า” ต้องเพิ่ม cash flow หรือลด size โซนล่าง`;}
+}
+
+/* ---------- order book + MT5 ---------- */
+function renderOrderBook(){
+  const p=P();
+  const rows=RUNGS.map(r=>{
+    const tp=+(r.price+p.spacing).toFixed(2);
+    const net=(p.spacing-p.spread)*r.barrels;
+    const col=ZONE_COLORS[r.zoneIdx%ZONE_COLORS.length];
+    return `<tr>
+      <td><span class="zchip" style="background:${col}"></span>${zones[r.zoneIdx]?zones[r.zoneIdx].name:''}</td>
+      <td class="side">BUY LIMIT</td><td>${r.lot.toFixed(2)}</td>
+      <td>${r.price.toFixed(2)}</td><td>${tp.toFixed(2)}</td>
+      <td>${fmt(r.barrels,2)}</td><td class="hl-green">${usd(net,2)}</td></tr>`;
+  }).join('');
+  $('obBody').innerHTML=rows;
+  $('obCount').textContent=RUNGS.length+' ไม้ทั้งหมด';
+  // MT5 text
+  const mt5=RUNGS.map(r=>`BUY LIMIT ${r.lot.toFixed(2)} OILCash @ ${r.price.toFixed(2)} TP ${(r.price+p.spacing).toFixed(2)}`).join('\n');
+  $('mt5out').value=mt5;
+}
+
+/* ---------- export ---------- */
+$('copyBtn').addEventListener('click',()=>{
+  $('mt5out').select();document.execCommand('copy');
+  const b=$('copyBtn');b.textContent='✓ คัดลอกแล้ว';setTimeout(()=>b.textContent='คัดลอกคำสั่ง MT5',1400);
+});
+$('dlBtn').addEventListener('click',()=>{
+  const p=P();
+  const csv='zone,side,lot,entry,tp,barrels,net_per_cycle\n'+RUNGS.map(r=>
+    `${zones[r.zoneIdx].name},BUY LIMIT,${r.lot},${r.price},${(r.price+p.spacing).toFixed(2)},${r.barrels},${((p.spacing-p.spread)*r.barrels).toFixed(2)}`).join('\n');
+  const blob=new Blob([csv],{type:'text/csv'});const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);a.download='crude_grid_orders.csv';a.click();
+});
+
+/* ---------- wiring ---------- */
+['contract','spacing','leverage','spread','equity','stopout','cashflow','drag','curPrice']
+  .forEach(id=>$(id).addEventListener('input',recompute));
+['rFrom','rTo','rAt','rLot'].forEach(id=>$(id).addEventListener('input',computeRubob));
+$('parkPrice').addEventListener('input',computeSwap);
+$('probe').addEventListener('input',updateProbe);
+$('addZone').addEventListener('click',()=>{
+  const last=zones[zones.length-1];
+  const nb=last?Math.max(last.bottom-1,0):0;
+  zones.push({name:'Zone '+(zones.length+1),top:nb,bottom:Math.max(nb-20,0),lot:(last?last.lot*2:0.01)});
+  recompute();
+});
+window.addEventListener('resize',()=>{drawLadder(stopOutPrice(RUNGS,P()));drawCurve(stopOutPrice(RUNGS,P()));});
+
+recompute();
+</script>
+</body>
+</html>
